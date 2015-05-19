@@ -6,6 +6,7 @@ var PluginError = require('gulp-util').PluginError;
 var eslint = require('eslint').linter;
 var CLIEngine = require('eslint').CLIEngine;
 var util = require('./util');
+var stream = require('stream');
 
 /**
  * Append eslint result to each file
@@ -113,20 +114,19 @@ gulpEslint.format = function(formatter, writable) {
 	formatter = util.resolveFormatter(formatter);
 	writable = util.resolveWritable(writable);
 
-	return through.obj(function(file, enc, cb) {
-		if (file.eslint) {
-			results.push(file.eslint);
-		}
-		cb(null, file);
-	}, function(cb) {
-		// Only format results if files has been lint'd
-		if (results.length) {
-			util.writeResults(results, formatter, writable);
-		}
-		// reset buffered results
-		results = [];
-		cb();
-	});
+	// Solution for greater 16 files, as logged in issue 36
+	// https://github.com/adametry/gulp-eslint/issues/36#issue-59241600
+	return new stream.PassThrough({objectMode: true})
+		.on('data', function(file) {
+			if (file.eslint) {
+				results.push(file.eslint);
+			}
+		})
+		.on('end', function() {
+			if (results.length) {
+				util.writeResults(results, formatter, writable);
+			}
+		});
 };
 
 /**
